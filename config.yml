@@ -1,0 +1,20 @@
+env: dev
+app_host: 0.0.0.0
+app_port: 3000
+log_directory: logs
+
+postgres:
+    db_name: ${DB_NAME}
+    user: ${DB_USER}
+    password: ${DB_PASSWORD}
+    host: ${DB_HOST}
+    port: ${DB_PORT}
+    min_pool_size: 2
+    max_pool_size: 10
+
+dex:
+    main_private_key: ${SOL_WALLET_PRIVATE_KEY}
+    rpc_url: https://api.mainnet-beta.solana.com
+    max_slippage: 5
+    max_lamports: 100000
+    max_retries: 5
