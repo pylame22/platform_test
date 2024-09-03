@@ -15,7 +15,7 @@ const positionServiceFactory = (trx: Knex.Transaction): PositionsService => {
     const clientsRepo = new ClientsRepo(trx);
     const transactionsRepo = new TransactionsRepo(trx);
     const balancesRepo = new BalancesRepo(trx);
-    const dexService = new RaydiumService(RaydiumService.getConnection(), RaydiumService.getWallet());
+    const dexService = new RaydiumService();
     return new PositionsService(assetsRepo, clientsRepo, transactionsRepo, balancesRepo, dexService);
 };
 

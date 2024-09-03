@@ -1,7 +1,6 @@
 import Decimal from "decimal.js";
-import { BaseDexService } from "./base";
-import { Connection, Keypair, PublicKey, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
-import bs58 from "bs58";
+import { AccountInfoType, BaseSolanaDexService } from "./base";
+import { PublicKey } from "@solana/web3.js";
 import config from "utils/config";
 import {
     CurrencyAmount,
@@ -12,22 +11,16 @@ import {
     SPL_ACCOUNT_LAYOUT,
     Token,
     TOKEN_PROGRAM_ID,
-    TokenAccount,
     TokenAmount,
 } from "@raydium-io/raydium-sdk";
 import { trimmedMainnetJson } from "utils/liquidity_pool";
 import { LiquidityPoolNotExists } from "utils/exceptions";
 
-export class RaydiumService extends BaseDexService {
+export class RaydiumService extends BaseSolanaDexService {
     name = "Raydium";
 
-    static getWallet = (): Keypair => {
-        const secretKey = bs58.decode(config.dex.main_private_key);
-        return Keypair.fromSecretKey(secretKey);
-    };
-
-    static getConnection = (): Connection => {
-        return new Connection(config.dex.rpc_url);
+    getAccountInfo = (data: Buffer): AccountInfoType => {
+        return SPL_ACCOUNT_LAYOUT.decode(data);
     };
 
     findPoolKeys = (baseTokenMint: PublicKey, quoteTokenMint: PublicKey): LiquidityPoolKeys => {
@@ -76,18 +69,6 @@ export class RaydiumService extends BaseDexService {
         return [amountOut, amountIn, minAmountOut];
     };
 
-    getOwnerTokenAccounts = async (): Promise<TokenAccount[]> => {
-        const walletTokenAccount = await this.connection.getTokenAccountsByOwner(this.wallet.publicKey, {
-            programId: TOKEN_PROGRAM_ID,
-        });
-
-        return walletTokenAccount.value.map((i) => ({
-            pubkey: i.pubkey,
-            programId: i.account.owner,
-            accountInfo: SPL_ACCOUNT_LAYOUT.decode(i.account.data),
-        }));
-    };
-
     swapToken = async (
         contractAddress: string,
         amountToken: Decimal,
@@ -100,7 +81,7 @@ export class RaydiumService extends BaseDexService {
             amountToken.toNumber(),
             swapInDirection,
         );
-        const userTokenAccounts = await this.getOwnerTokenAccounts();
+        const userTokenAccounts = await this.getOwnerTokenAccounts(TOKEN_PROGRAM_ID);
         const swapTransaction = await Liquidity.makeSwapInstructionSimple({
             connection: this.connection,
             makeTxVersion: 0,
@@ -121,18 +102,7 @@ export class RaydiumService extends BaseDexService {
         });
         const recentBlockhashForSwap = await this.connection.getLatestBlockhash();
         const instructions = swapTransaction.innerTransactions[0].instructions.filter(Boolean);
-        const transaction = new VersionedTransaction(
-            new TransactionMessage({
-                payerKey: this.wallet.publicKey,
-                recentBlockhash: recentBlockhashForSwap.blockhash,
-                instructions: instructions,
-            }).compileToV0Message(),
-        );
-        transaction.sign([this.wallet.payer]);
-        const txid = await this.connection.sendTransaction(transaction, {
-            skipPreflight: true,
-            maxRetries: config.dex.max_retries,
-        });
+        const txid = await this.createTransaction(recentBlockhashForSwap.blockhash, instructions);
         return [txid, new Decimal(amountOut.toFixed())];
     };
 }
